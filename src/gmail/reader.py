@@ -107,9 +107,13 @@ if __name__ == "__main__":
                 clean_text = html_to_text(content)
             else:
                 clean_text = clean_plain_text(content)
-            
+            if not clean_text:
+                print("\nWARNING: Parser returned empty text.")
+                print("First 500 characters of original content:")
+                print(repr(content[:500]))
+
             print("MIME type:", mime_type)
             print("Original characters:", len(content))
             print("Clean characters:", len(clean_text))
-            print("\nCLEANED NEWSLETTER:\n")
-            print(clean_text[:5000])
+            print("\nEXTRACTED NEWSLETTER:\n")
+            print(clean_text[:1000])
