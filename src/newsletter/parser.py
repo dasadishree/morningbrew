@@ -1,6 +1,35 @@
 from bs4 import BeautifulSoup
 import re
 
+def is_image_artifact(line):
+    lower = line.lower().strip()
+    if lower in {
+        "newsletter logo",
+        "sponsor logo",
+    }:
+        return True
+    if lower.startswith("sponsor logo:"):
+        return True
+
+    image_starts = [
+        "illustration of ",
+        "image of ",
+        "photo of ",
+    ]
+
+    if any(lower.startswith(prefix) for prefix in image_starts):
+        return True
+    
+    if lower in {
+        "unsplash", 
+        "getty images",
+        "shutterstock",
+        "reuters",
+        "associated press",
+    }:
+        return True
+    return False
+
 def html_to_text(html):
     if not html:
         return ""
@@ -40,6 +69,8 @@ def clean_text(text):
     for line in text.splitlines():
         line = re.sub(r"\s+", " ", line).strip()
         if not line:
+            continue
+        if is_image_artifact(line):
             continue
         lines.append(line)
     return "\n".join(lines)

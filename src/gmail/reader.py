@@ -115,5 +115,5 @@ if __name__ == "__main__":
             print("MIME type:", mime_type)
             print("Original characters:", len(content))
             print("Clean characters:", len(clean_text))
-            print("\nEXTRACTED NEWSLETTER:\n")
+            print("\nPARSED NEWSLETTER:\n")
             print(clean_text[:1000])
