@@ -7,6 +7,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from src.newsletter.parser import html_to_text, clean_plain_text
+from src.database.db import initialize_database, newsletter_exists, save_newsletter
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -90,14 +91,21 @@ def get_headers(payload):
     return headers
 
 if __name__ == "__main__":
+    initialize_database()
+    
     service = get_gmail_service()
     messages = find_morning_brew_emails(service)
     print("Found", len(messages), "Morning Brew emails.")
     for message in messages:
-        full_message = get_message(service, message["id"])
+        message_id = message["id"]
+        if newsletter_exists(message_id):
+            print("\nAlready saved, skipping:", message_id)
+            continue
+
+        full_message = get_message(service, message_id)
         headers = get_headers(full_message["payload"])
         print("\n"+"="*60)
-        print("ID:", message["id"])
+        print("ID:", message_id)
         print("Date:", headers.get("date"))
         print("Subject:", headers.get("subject"))
         body = extract_body(full_message["payload"])
@@ -111,6 +119,14 @@ if __name__ == "__main__":
                 print("\nWARNING: Parser returned empty text.")
                 print("First 500 characters of original content:")
                 print(repr(content[:500]))
+            save_newsletter(
+                gmail_message_id = message_id,
+                newsletter_date=headers.get("date"),
+                subject=headers.get("subject"),
+                raw_content=content,
+                clean_content=clean_text,
+            )
+            print("Saved to database!")
 
             print("MIME type:", mime_type)
             print("Original characters:", len(content))

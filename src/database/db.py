@@ -72,3 +72,18 @@ def save_newsletter(
 
     connection.commit()
     connection.close()
+
+def get_unsummarized_newsletters():
+    connection= get_connection()
+    cursor = connection.cursor()
+    cursor.execute(
+        """
+           SELECT id, gmail_message_id, newsletter_date, subject, clean_content
+           FROM newsletters
+           WHERE summary IS NULL
+           ORDER BY newsletter_date ASC 
+        """
+    )
+    newsletters = cursor.fetchall()
+    connection.close()
+    return newsletters
