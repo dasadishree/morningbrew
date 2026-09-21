@@ -6,6 +6,7 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
+from src.newsletter.parser import html_to_text, clean_plain_text
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -34,7 +35,7 @@ def get_gmail_service():
 
 # gets recent emails
 def find_morning_brew_emails(service, max_results=10):
-    query = "from:crew@morningbrew.com"
+    query = "from:crew@morningbrew.com in:anywhere"
     results = (
         service.users()
         .messages()
@@ -61,7 +62,6 @@ def get_message(service, message_id):
     )
 
 def decode_body(data):
-    """Decode Gmail's base64url encoded message body"""
     if not data:
         return ""
     
@@ -103,5 +103,13 @@ if __name__ == "__main__":
         body = extract_body(full_message["payload"])
         if body:
             mime_type, content = body
+            if mime_type == "text/html":
+                clean_text = html_to_text(content)
+            else:
+                clean_text = clean_plain_text(content)
+            
             print("MIME type:", mime_type)
-            print("Characters:", len(content))
+            print("Original characters:", len(content))
+            print("Clean characters:", len(clean_text))
+            print("\nCLEANED NEWSLETTER:\n")
+            print(clean_text[:5000])
