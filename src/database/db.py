@@ -16,12 +16,27 @@ def initialize_database():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS newsletters (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            newsletter_id INTEGER UNIQUE NOT NULL,
+            gmail_message_id TEXT UNIQUE NOT NULL,
+            newsletter_date TEXT,
+            subject TEXT,
+            raw_content TEXT,
+            clean_content TEXT,
+            summary TEXT,
+            summary_sent INTEGER DEFAULT 0,     
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS quizzes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+            newsletter_id INTEGER NOT NULL,
             quiz_json TEXT NOT NULL,
+            slack_sent INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (newsletter_id) REFERENCES newsletters(id)
         )
     """)
+
     connection.commit()
     connection.close()
 
@@ -144,20 +159,22 @@ def save_quiz(newsletter_id, quiz):
     cursor=connection.cursor()
     cursor.execute(
         """
-            INSERT OR IGNORE INTO quizzes (newsletter_id, quiz_json)
+            INSERT INTO quizzes (newsletter_id, quiz_json)
             VALUES (?, ?)
         """,
         (newsletter_id, json.dumps(quiz)),
     )
+    quiz_id = cursor.lastrowid
     connection.commit()
     connection.close()
+    return quiz_id
 
-def mark_quiz_sent(newsletter_id):
+def mark_quiz_sent(quiz_id):
     connection=get_connection()
     cursor=connection.cursor()
     cursor.execute(
-        "UPDATE quizzes SET slack_sent = 1 WHERE newsletter_id = ?",
-        (newsletter_id,),
+        "UPDATE quizzes SET slack_sent = 1 WHERE id = ?",
+        (quiz_id,),
     )
     connection.commit()
     connection.close()
