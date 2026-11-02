@@ -8,9 +8,11 @@ from google.genai import types
 from src.database.db import (
     initialize_database,
     get_latest_todays_newsletter,
+    get_quiz,
     save_quiz,
     mark_quiz_sent,
 )
+from src.gmail.reader import save_new_newsletters
 from src.notifications.slack import send_slack_message
 load_dotenv()
 
@@ -81,16 +83,28 @@ def format_slack_quiz(subject, quiz):
 
 def main():
     initialize_database()
-    newsletter=get_latest_todays_newsletter()
+    save_new_newsletters()
+
+    newsletter = get_latest_todays_newsletter()
     if newsletter is None:
-        print("No newsletter from today found. Run the Gmail reader first:")
-        print("python3 -m src.gmail.reader")
+        print("No newsletter from today yet.")
         return
+
     newsletter_id, newsletter_date, subject, content = newsletter
-    print("generating a new quiz...")
-    quiz=generate_quiz(content)
-    quiz_id=save_quiz(newsletter_id, quiz)
-    message=format_slack_quiz(subject,quiz)
+    existing = get_quiz(newsletter_id)
+    if existing:
+        quiz_id, quiz_json, slack_sent = existing
+        if slack_sent:
+            print("Today's quiz was already sent.")
+            return
+        quiz = json.loads(quiz_json)
+        print("Sending the quiz that was saved but not posted...")
+    else:
+        print("generating a new quiz...")
+        quiz = generate_quiz(content)
+        quiz_id = save_quiz(newsletter_id, quiz)
+
+    message = format_slack_quiz(subject, quiz)
     send_slack_message(message)
     mark_quiz_sent(quiz_id)
     print("new quiz posted!")

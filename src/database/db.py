@@ -19,10 +19,7 @@ def initialize_database():
             gmail_message_id TEXT UNIQUE NOT NULL,
             newsletter_date TEXT,
             subject TEXT,
-            raw_content TEXT,
             clean_content TEXT,
-            summary TEXT,
-            summary_sent INTEGER DEFAULT 0,     
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -36,6 +33,12 @@ def initialize_database():
             FOREIGN KEY (newsletter_id) REFERENCES newsletters(id)
         )
     """)
+
+    cursor.execute("PRAGMA table_info(newsletters)")
+    columns = {row[1] for row in cursor.fetchall()}
+    for column in ("raw_content", "summary", "summary_sent"):
+        if column in columns:
+            cursor.execute(f"ALTER TABLE newsletters DROP COLUMN {column}")
 
     connection.commit()
     connection.close()
@@ -59,7 +62,6 @@ def save_newsletter(
         gmail_message_id,
         newsletter_date,
         subject,
-        raw_content,
         clean_content,
 ):
     connection = get_connection()
@@ -70,16 +72,14 @@ def save_newsletter(
             gmail_message_id,
             newsletter_date,
             subject,
-            raw_content,
             clean_content
         )
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?)
         """,
         (
             gmail_message_id,
             newsletter_date,
             subject,
-            raw_content,
             clean_content,
         ),
     )
@@ -87,36 +87,6 @@ def save_newsletter(
     connection.commit()
     connection.close()
 
-def get_unsummarized_newsletters():
-    connection= get_connection()
-    cursor = connection.cursor()
-    cursor.execute(
-        """
-           SELECT id, gmail_message_id, newsletter_date, subject, clean_content
-           FROM newsletters
-           WHERE summary IS NULL
-           ORDER BY newsletter_date ASC 
-        """
-    )
-    newsletters = cursor.fetchall()
-    connection.close()
-    return newsletters
-
-def save_summary(newsletter_id, summary):
-    connection=get_connection()
-    cursor=connection.cursor()
-    cursor.execute(
-     """
-        UPDATE newsletters
-        SET summary = ?
-        WHERE id = ?
-    """,
-     (summary, newsletter_id),
-)
-    connection.commit()
-    connection.close()
-
-# todays news
 def get_latest_todays_newsletter():
     connection = get_connection()
     cursor = connection.cursor()
@@ -147,7 +117,13 @@ def get_quiz(newsletter_id):
     connection=get_connection()
     cursor=connection.cursor()
     cursor.execute(
-        "SELECT quiz_json, slack_sent FROM quizzes WHERE newsletter_id = ?",
+        """
+        SELECT id, quiz_json, slack_sent
+        FROM quizzes
+        WHERE newsletter_id = ?
+        ORDER BY id DESC
+        LIMIT 1
+        """,
         (newsletter_id,),
     )
     result = cursor.fetchone()

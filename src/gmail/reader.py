@@ -99,14 +99,14 @@ def get_headers(payload):
 
     return headers
 
-if __name__ == "__main__":
+def save_new_newsletters(max_results=10):
     initialize_database()
-    
+
     service = get_gmail_service()
-    messages = find_morning_brew_emails(service)
+    messages = find_morning_brew_emails(service, max_results=max_results)
     print("Found", len(messages), "Morning Brew emails.")
-    saved_count=0
-    skipped_count=0
+    saved_count = 0
+    skipped_count = 0
 
     for message in messages:
         gmail_id=message["id"]
@@ -137,13 +137,17 @@ if __name__ == "__main__":
 
         save_newsletter(
             gmail_id,
-            newsletter_date, 
+            newsletter_date,
             subject,
-            raw_content,
-            clean_content
+            clean_content,
         )
         saved_count+=1
         print("Saved:", subject)
 
     print("\nNew newsletters saved:", saved_count)
     print("Already saved:", skipped_count)
+    return saved_count
+
+
+if __name__ == "__main__":
+    save_new_newsletters()
