@@ -18,12 +18,19 @@ TOKEN_FILE = BASE_DIR / "token.json"
 def get_gmail_service():
     creds = None
     if TOKEN_FILE.exists():
-        creds = Credentials.from_authorized_user_file(
-            TOKEN_FILE,
-            SCOPES
-        )
-    if creds and creds.expired and creds.refresh_token:
-        creds.refresh(Request())
+        try:
+            creds = Credentials.from_authorized_user_file(
+                TOKEN_FILE,
+                SCOPES
+            )
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+        except Exception as e:
+            print("Existing Gmail authentication expired:", e)
+            print("YOu will need to sign in again")
+            TOKEN_FILE.unlink(missing_ok=True)
+            creds=None
+
     if not creds or not creds.valid:
         flow = InstalledAppFlow.from_client_secrets_file(
             CREDENTIALS_FILE,
@@ -97,39 +104,44 @@ if __name__ == "__main__":
     messages = find_morning_brew_emails(service)
     print("Found", len(messages), "Morning Brew emails.")
     for message in messages:
-        message_id = message["id"]
-        if newsletter_exists(message_id):
-            print("\nAlready saved, skipping:", message_id)
-            continue
+        full_message = get_message(service, message["id"])
+        headers=get_headers(full_message["payload"])
+        print(headers.get("date"), "|", headers.get("subject"))
 
-        full_message = get_message(service, message_id)
-        headers = get_headers(full_message["payload"])
-        print("\n"+"="*60)
-        print("ID:", message_id)
-        print("Date:", headers.get("date"))
-        print("Subject:", headers.get("subject"))
-        body = extract_body(full_message["payload"])
-        if body:
-            mime_type, content = body
-            if mime_type == "text/html":
-                clean_text = html_to_text(content)
-            else:
-                clean_text = clean_plain_text(content)
-            if not clean_text:
-                print("\nWARNING: Parser returned empty text.")
-                print("First 500 characters of original content:")
-                print(repr(content[:500]))
-            save_newsletter(
-                gmail_message_id = message_id,
-                newsletter_date=headers.get("date"),
-                subject=headers.get("subject"),
-                raw_content=content,
-                clean_content=clean_text,
-            )
-            print("Saved to database!")
+    # for message in messages:
+    #     message_id = message["id"]
+    #     if newsletter_exists(message_id):
+    #         print("\nAlready saved, skipping:", message_id)
+    #         continue
 
-            print("MIME type:", mime_type)
-            print("Original characters:", len(content))
-            print("Clean characters:", len(clean_text))
-            print("\nPARSED NEWSLETTER:\n")
-            print(clean_text[:1000])
+    #     full_message = get_message(service, message_id)
+    #     headers = get_headers(full_message["payload"])
+    #     print("\n"+"="*60)
+    #     print("ID:", message_id)
+    #     print("Date:", headers.get("date"))
+    #     print("Subject:", headers.get("subject"))
+    #     body = extract_body(full_message["payload"])
+    #     if body:
+    #         mime_type, content = body
+    #         if mime_type == "text/html":
+    #             clean_text = html_to_text(content)
+    #         else:
+    #             clean_text = clean_plain_text(content)
+    #         if not clean_text:
+    #             print("\nWARNING: Parser returned empty text.")
+    #             print("First 500 characters of original content:")
+    #             print(repr(content[:500]))
+    #         save_newsletter(
+    #             gmail_message_id = message_id,
+    #             newsletter_date=headers.get("date"),
+    #             subject=headers.get("subject"),
+    #             raw_content=content,
+    #             clean_content=clean_text,
+    #         )
+    #         print("Saved to database!")
+
+    #         print("MIME type:", mime_type)
+    #         print("Original characters:", len(content))
+    #         print("Clean characters:", len(clean_text))
+    #         print("\nPARSED NEWSLETTER:\n")
+    #         print(clean_text[:1000])

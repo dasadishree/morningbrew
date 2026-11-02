@@ -1,5 +1,5 @@
 from src.ai.summarizer import summarize_newsletter
-from src.database.db import get_unsummarized_newsletters
+from src.database.db import get_unsummarized_newsletters, save_summary
 
 newsletters = get_unsummarized_newsletters()
 
@@ -19,3 +19,5 @@ print("="*60)
 summary = summarize_newsletter(content)
 print("\nSUMMARY:\n")
 print(summary)
+save_summary(newsletter_id, summary)
+print("\nsummary saved to db!")

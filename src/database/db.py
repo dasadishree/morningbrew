@@ -87,3 +87,17 @@ def get_unsummarized_newsletters():
     newsletters = cursor.fetchall()
     connection.close()
     return newsletters
+
+def save_summary(newsletter_id, summary):
+    connection=get_connection()
+    cursor=connection.cursor()
+    cursor.execute(
+     """
+        UPDATE newsletters
+        SET summary = ?
+        WHERE id = ?
+    """,
+     (summary, newsletter_id),
+)
+    connection.commit()
+    connection.close()
