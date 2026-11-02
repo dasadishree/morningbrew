@@ -1,15 +1,15 @@
 from src.ai.summarizer import summarize_newsletter
-from src.database.db import get_unsammarized_newsletters
+from src.database.db import get_unsummarized_newsletters
 
-newsletters = get_unsammarized_newsletters()
+newsletters = get_unsummarized_newsletters()
 
 if not newsletters:
-    print("No unsammarized newsletters found.")
+    print("No unsummarized newsletters found.")
     exit()
 
 newsletter = newsletters[0]
 
-newsletter_id, gmail_id, date, subject, content=newsletter
+newsletter_id, gmail_id, date, subject, content = newsletter
 
 print("="*60)
 print("Subject:", subject)
