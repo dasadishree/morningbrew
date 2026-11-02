@@ -1,4 +1,3 @@
-import os
 import base64
 from pathlib import Path
 
@@ -110,31 +109,41 @@ if __name__ == "__main__":
     skipped_count=0
 
     for message in messages:
-        
-        metadata=get_message(
-            service,
-            message["id"],
-            message_format="metadata"
-        )
-        headers=get_headers(metadata["payload"])
-        print(headers.get("date"), "|", headers.get("subject"))
+        gmail_id=message["id"]
+        if newsletter_exists(gmail_id):
+            print("alr saved: ", gmail_id)
+            skipped_count+=1
+            continue
 
-    if messages:
-        print("\n"+"="*60)
-        print("INSPECTING NEWEST NEWSLETTER")
-        print("="*60)
-        full_message=get_message(service, messages[0]["id"])
+        full_message=get_message(service, gmail_id)
         headers=get_headers(full_message["payload"])
-        print("Subject:", headers.get("subject"))
+        newsletter_date = headers.get("date")
+        subject =headers.get("subject", "Untitled Newsletter")
         body_result = extract_body(full_message["payload"])
-        if body_result:
-            mime_type, raw_content = body_result
-            if mime_type == "text/html":
-                clean_content = html_to_text(raw_content)
-            else:
-                clean_content = clean_plain_text(raw_content)
-            
-            print("\nEXTRAVCTED CONTENT:\n")
-            print(clean_content)
+
+        if not body_result:
+            print("no reabale content: ", subject)
+            continue
+
+        mime_type, raw_content = body_result
+        if mime_type == "text/html":
+            clean_content = html_to_text(raw_content)
         else:
-            print("no readable content found")
+            clean_content = clean_plain_text(raw_content)
+        
+        if not clean_content.strip():
+            print("empty newsletter:", subject)
+            continue
+
+        save_newsletter(
+            gmail_id,
+            newsletter_date, 
+            subject,
+            raw_content,
+            clean_content
+        )
+        saved_count+=1
+        print("Saved:", subject)
+
+    print("\nNew newsletters saved:", saved_count)
+    print("Already saved:", skipped_count)
