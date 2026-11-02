@@ -17,7 +17,7 @@ load_dotenv()
 MODEL="gemini-3.8-flash"
 
 def generate_quiz(content):
-    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"), http_options=types.HttpOptions(timeout=30000, retry_options=types.HttpRetryOptions(attempts=1),),)
+    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"), http_options=types.HttpOptions(retry_options=types.HttpRetryOptions(attempts=1),),)
     response = client.models.generate_content(
         model=MODEL,
         contents=f"""
@@ -45,7 +45,10 @@ def generate_quiz(content):
         NEWSLETTER
         {content}
         """,
-            config={"response_mime_type": "application/json"}
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                thinking_config=types.ThinkingConfig(thinking_level="LOW"),
+            )
     )
 
     quiz=json.loads(response.text)
