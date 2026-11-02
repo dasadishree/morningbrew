@@ -30,6 +30,28 @@ def is_image_artifact(line):
         return True
     return False
 
+def remove_footer(text):
+    # remove footers
+    footer_markers=[
+        "brew's best",
+        "share the brew",
+        "referrals get rewarded",
+        "a note from chase",
+        "get smarter in just 5 minutes",
+        "take the brew to work",
+        "interested in podcasts?",
+        "was this email forwarded to you?",
+    ]
+    lines=text.splitlines()
+    cleaned_lines=[]
+    for line in lines:
+        lower = line.lower().strip()
+        if any(marker in lower for marker in footer_markers):
+            break
+        cleaned_lines.append(line)
+    return "\n".join(cleaned_lines)
+
+# change html text/script to plain text
 def html_to_text(html):
     if not html:
         return ""
@@ -54,11 +76,8 @@ def clean_plain_text(text):
     if not text:
         return ""
     
-    if(
-        "<html" in text.lower() 
-        or "<body" in text.lower()
-        or "<a" in text.lower() 
-        or "<img " in text.lower()
+    if any(
+        marker in text.lower() for marker in ["<html", "<body", "<a", "<img "]
     ):
         return html_to_text(text)
 
@@ -73,4 +92,5 @@ def clean_text(text):
         if is_image_artifact(line):
             continue
         lines.append(line)
-    return "\n".join(lines)
+    text= "\n".join(lines)
+    return remove_footer(text)
