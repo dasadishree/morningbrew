@@ -1,5 +1,4 @@
 import json
-from datetime import datetime
 from email.utils import parsedate_to_datetime
 import sqlite3
 from pathlib import Path
@@ -10,6 +9,7 @@ DB_PATH = BASE_DIR / "morningbrew.db"
 def get_connection():
     return sqlite3.connect(DB_PATH)
 
+# creates tables
 def initialize_database():
     connection = get_connection()
     cursor = connection.cursor()
@@ -34,15 +34,10 @@ def initialize_database():
         )
     """)
 
-    cursor.execute("PRAGMA table_info(newsletters)")
-    columns = {row[1] for row in cursor.fetchall()}
-    for column in ("raw_content", "summary", "summary_sent"):
-        if column in columns:
-            cursor.execute(f"ALTER TABLE newsletters DROP COLUMN {column}")
-
     connection.commit()
     connection.close()
 
+# prevents saving same email twice
 def newsletter_exists(gmail_message_id):
     connection = get_connection()
     cursor = connection.cursor()
@@ -58,6 +53,7 @@ def newsletter_exists(gmail_message_id):
     connection.close()
     return result is not None
 
+# stores new newsletters
 def save_newsletter(
         gmail_message_id,
         newsletter_date,
@@ -87,32 +83,61 @@ def save_newsletter(
     connection.commit()
     connection.close()
 
-def get_latest_todays_newsletter():
+# parses dates to sort
+def _parsed_newsletter_date(value):
+    try:
+        return parsedate_to_datetime(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+# finds newsletters still needing quizzes
+def get_newsletters_awaiting_quiz():
     connection = get_connection()
     cursor = connection.cursor()
     cursor.execute("""
-        SELECT id, newsletter_date, subject, clean_content
-        FROM newsletters
-        WHERE clean_content IS NOT NULL AND clean_content != ''
+        SELECT
+            n.id,
+            n.newsletter_date,
+            n.subject,
+            n.clean_content,
+            COALESCE((
+                SELECT slack_sent
+                FROM quizzes
+                WHERE newsletter_id = n.id
+                ORDER BY id DESC
+                LIMIT 1
+            ), 0)
+        FROM newsletters n
+        WHERE n.clean_content IS NOT NULL AND n.clean_content != ''
     """)
     rows = cursor.fetchall()
     connection.close()
 
-    today =datetime.now().astimezone().date()
-    dated_rows=[]
-
+    dated = []
     for row in rows:
-        try:
-            parsed_date=parsedate_to_datetime(row[1])
-            if parsed_date.astimezone().date() ==today:
-                dated_rows.append((parsed_date, row))
-        except(TypeError, ValueError):
-            continue
-    if not dated_rows:
-        return None
-    
-    return max(dated_rows, key=lambda item: item[0])[1]
+        parsed = _parsed_newsletter_date(row[1])
+        if parsed is not None:
+            dated.append((parsed, row))
 
+    if not dated:
+        return []
+
+    sent_dates = [parsed for parsed, row in dated if row[4]]
+    if sent_dates:
+        cutoff = max(sent_dates)
+        pending = [
+            (parsed, row)
+            for parsed, row in dated
+            if parsed > cutoff and not row[4]
+        ]
+    else:
+        newest = max(dated, key=lambda item: item[0])
+        pending = [] if newest[1][4] else [newest]
+
+    pending.sort(key=lambda item: item[0])
+    return [row[:4] for _, row in pending]
+
+# checks if a quiz was alreayd generated
 def get_quiz(newsletter_id):
     connection=get_connection()
     cursor=connection.cursor()
@@ -130,6 +155,7 @@ def get_quiz(newsletter_id):
     connection.close()
     return result
 
+# saves quizes
 def save_quiz(newsletter_id, quiz):
     connection=get_connection()
     cursor=connection.cursor()
@@ -145,6 +171,7 @@ def save_quiz(newsletter_id, quiz):
     connection.close()
     return quiz_id
 
+# marks successufl slasck posts
 def mark_quiz_sent(quiz_id):
     connection=get_connection()
     cursor=connection.cursor()

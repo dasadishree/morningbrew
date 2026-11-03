@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.morningbrew.quiz</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/dasadishree/Library/Application Support/morningbrew/.venv/bin/python</string>
+        <string>-u</string>
+        <string>-m</string>
+        <string>src.quiz.generate</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/dasadishree/Desktop/coding/morningbrew</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>SSL_CERT_FILE</key>
+        <string>/Users/dasadishree/Library/Application Support/morningbrew/.venv/lib/python3.14/site-packages/certifi/cacert.pem</string>
+        <key>REQUESTS_CA_BUNDLE</key>
+        <string>/Users/dasadishree/Library/Application Support/morningbrew/.venv/lib/python3.14/site-packages/certifi/cacert.pem</string>
+        <key>PYTHONDONTWRITEBYTECODE</key>
+        <string>1</string>
+    </dict>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>7</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>/Users/dasadishree/Library/Logs/morningbrew/quiz.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/dasadishree/Library/Logs/morningbrew/quiz.err.log</string>
+</dict>
+</plist>

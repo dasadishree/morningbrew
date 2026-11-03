@@ -5,5 +5,6 @@ __pycache__/
 credentials.json
 token.json
 data/*.db
+logs/
 .DS_Store
 .env

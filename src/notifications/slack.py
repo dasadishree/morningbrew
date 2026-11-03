@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# send slack message
 def send_slack_message(message):
     webhook_url = os.getenv("SLACK_WEBHOOK_URL")
     if not webhook_url:

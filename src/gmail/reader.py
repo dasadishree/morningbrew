@@ -1,4 +1,6 @@
 import base64
+import os
+import sys
 from pathlib import Path
 
 from google.auth.transport.requests import Request
@@ -17,27 +19,23 @@ TOKEN_FILE = BASE_DIR / "token.json"
 def get_gmail_service():
     creds = None
     if TOKEN_FILE.exists():
-        try:
-            creds = Credentials.from_authorized_user_file(
-                TOKEN_FILE,
-                SCOPES
-            )
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-        except Exception as e:
-            print("Existing Gmail authentication expired:", e)
-            print("YOu will need to sign in again")
-            TOKEN_FILE.unlink(missing_ok=True)
-            creds=None
+        creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+            TOKEN_FILE.write_text(creds.to_json())
 
-    if not creds or not creds.valid:
-        flow = InstalledAppFlow.from_client_secrets_file(
-            CREDENTIALS_FILE,
-            SCOPES
+    if creds and creds.valid:
+        return build("gmail", "v1", credentials=creds)
+
+    if not sys.stdin.isatty() and os.getenv("MORNINGBREW_LOGIN") != "1":
+        raise RuntimeError(
+            "Gmail needs a sign-in. In Terminal, from this project folder, run: "
+            "python3 -m src.gmail.reader"
         )
 
-        creds = flow.run_local_server(port=0)
-        TOKEN_FILE.write_text(creds.to_json())
+    flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
+    creds = flow.run_local_server(port=0)
+    TOKEN_FILE.write_text(creds.to_json())
     return build("gmail", "v1", credentials=creds)
 
 # gets recent emails
@@ -56,6 +54,7 @@ def find_morning_brew_emails(service, max_results=10):
 
     return results.get("messages", [])
 
+# retrieives email
 def get_message(service, message_id, message_format="full"):
     request_args={
         "userId": "me",
@@ -71,6 +70,7 @@ def get_message(service, message_id, message_format="full"):
         .execute()
     )
 
+# decodes gmails base64
 def decode_body(data):
     if not data:
         return ""
@@ -78,6 +78,7 @@ def decode_body(data):
     decoded=base64.urlsafe_b64decode(data+"=" * (-len(data) %4))
     return decoded.decode("utf-8", errors="replace")
 
+# extracts email boidy
 def extract_body(payload):
     mime_type = payload.get("mimeType", "")
     body_data = payload.get("body", {}).get("data")
@@ -91,6 +92,7 @@ def extract_body(payload):
         
     return None
 
+# gets date and subject
 def get_headers(payload):
     headers ={}
     for header in payload.get("headers", []):
@@ -99,6 +101,7 @@ def get_headers(payload):
 
     return headers
 
+# processes and sdaves new emails
 def save_new_newsletters(max_results=10):
     initialize_database()
 
@@ -147,7 +150,6 @@ def save_new_newsletters(max_results=10):
     print("\nNew newsletters saved:", saved_count)
     print("Already saved:", skipped_count)
     return saved_count
-
 
 if __name__ == "__main__":
     save_new_newsletters()

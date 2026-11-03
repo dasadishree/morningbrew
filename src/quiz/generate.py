@@ -1,5 +1,7 @@
+import fcntl
 import json
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 from google import genai
@@ -7,7 +9,7 @@ from google.genai import types
 
 from src.database.db import (
     initialize_database,
-    get_latest_todays_newsletter,
+    get_newsletters_awaiting_quiz,
     get_quiz,
     save_quiz,
     mark_quiz_sent,
@@ -18,6 +20,7 @@ load_dotenv()
 
 MODEL="gemini-3.8-flash"
 
+# grneerate 10 questions
 def generate_quiz(content):
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"), http_options=types.HttpOptions(retry_options=types.HttpRetryOptions(attempts=1),),)
     response = client.models.generate_content(
@@ -40,7 +43,6 @@ def generate_quiz(content):
                 "D": "Choice D"
             }},
             "answer": "A",
-            "explanation": "Brief explanation"
             }}
         ]
         }}
@@ -59,13 +61,36 @@ def generate_quiz(content):
     if len(questions)!=10:
         raise ValueError("gemini didnt return exactly 10 questions")
     for question in questions:
-        if set(question["choices"].keys()) != {"A", "B", "C", "D"}:
-            raise ValueError("A question doesnt have 4 choices")
-        if question["answer"] not in {"A", "B", "C", "D"}:
+        question["choices"] = _normalize_choices(question.get("choices"))
+        answer = str(question.get("answer", "")).strip().upper()
+        answer = answer[:1]
+        if answer not in {"A", "B", "C", "D"}:
             raise ValueError("A question has an invalid answer.")
-        
+        question["answer"] = answer
+
     return quiz
 
+# consisntent choice formatitng
+def _normalize_choices(choices):
+    letters = ("A", "B", "C", "D")
+    if isinstance(choices, list):
+        if len(choices) != 4:
+            raise ValueError("A question doesnt have 4 choices")
+        return {letter: str(choice) for letter, choice in zip(letters, choices)}
+    if not isinstance(choices, dict):
+        raise ValueError("A question doesnt have 4 choices")
+    normalized = {}
+    for key, value in choices.items():
+        label = str(key).strip().upper()
+        if not label or label[0] not in letters or label[0] in normalized:
+            continue
+        if len(label) == 1 or not label[1].isalpha():
+            normalized[label[0]] = value
+    if set(normalized) != set(letters):
+        raise ValueError("A question doesnt have 4 choices")
+    return {letter: normalized[letter] for letter in letters}
+
+# formats quiz for slack
 def format_slack_quiz(subject, quiz):
     message = f"*Morning Brew Daily Quiz*\n_{subject}_\n\n"
     for number, question in enumerate(quiz["questions"], start=1):
@@ -81,33 +106,48 @@ def format_slack_quiz(subject, quiz):
     message+= "     ".join(answers)
     return message
 
-def main():
-    initialize_database()
-    save_new_newsletters()
-
-    newsletter = get_latest_todays_newsletter()
-    if newsletter is None:
-        print("No newsletter from today yet.")
-        return
-
-    newsletter_id, newsletter_date, subject, content = newsletter
+# genernate save and post
+def post_quiz(newsletter):
+    newsletter_id, _, subject, content = newsletter
     existing = get_quiz(newsletter_id)
     if existing:
         quiz_id, quiz_json, slack_sent = existing
         if slack_sent:
-            print("Today's quiz was already sent.")
+            print("Quiz already sent:", subject)
             return
         quiz = json.loads(quiz_json)
-        print("Sending the quiz that was saved but not posted...")
+        print("Sending the saved quiz:", subject)
     else:
-        print("generating a new quiz...")
+        print("Generating a quiz:", subject)
         quiz = generate_quiz(content)
         quiz_id = save_quiz(newsletter_id, quiz)
 
     message = format_slack_quiz(subject, quiz)
     send_slack_message(message)
     mark_quiz_sent(quiz_id)
-    print("new quiz posted!")
+    print("Quiz posted:", subject)
+
+def main():
+    lock_path = Path.home() / "Library" / "Logs" / "morningbrew" / "quiz.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock_file = open(lock_path, "w")
+    try:
+        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        print("Quiz check already running.")
+        return
+
+    try:
+        save_new_newsletters()
+        pending = get_newsletters_awaiting_quiz()
+        if not pending:
+            print("No new newsletter to quiz.")
+            return
+        for newsletter in pending:
+            post_quiz(newsletter)
+    finally:
+        fcntl.flock(lock_file, fcntl.LOCK_UN)
+        lock_file.close()
 
 if __name__ == "__main__":
     main()
