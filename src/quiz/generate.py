@@ -1,11 +1,12 @@
 import fcntl
 import json
 import os
+import re
+import time
 from pathlib import Path
 
+import requests
 from dotenv import load_dotenv
-from google import genai
-from google.genai import types
 
 from src.database.db import (
     initialize_database,
@@ -18,14 +19,29 @@ from src.gmail.reader import save_new_newsletters
 from src.notifications.slack import send_slack_message
 load_dotenv()
 
-MODEL="gemini-3.8-flash"
+HACKCLUB_URL = "https://ai.hackclub.com/proxy/v1/chat/completions"
+MODELS = ("qwen/qwen3.6-flash", "google/gemini-3.6-flash")
 
 # grneerate 10 questions
 def generate_quiz(content):
-    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"), http_options=types.HttpOptions(retry_options=types.HttpRetryOptions(attempts=1),),)
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=f"""
+    api_key = os.getenv("HACKCLUB_API_KEY")
+    if not api_key:
+        raise ValueError("HACKCLUB_API_KEY not found in .env")
+    last_error = None
+    for model in MODELS:
+        for attempt in range(1, 3):
+            try:
+                return _request_quiz(api_key, content, model)
+            except (requests.RequestException, TimeoutError, json.JSONDecodeError, ValueError, KeyError) as exc:
+                last_error = exc
+                print(f"{model} attempt {attempt} failed: {exc}")
+                if attempt == 1:
+                    time.sleep(3)
+    raise last_error
+
+
+def _quiz_prompt(content):
+    return f"""
         Create exactly 10 multiple choice questions about the important news in this Morning Brew newsletter.
         Avoid pulling from the "sponsored by" sections or the header / footer.
         Each question must have 4 answer choices (A, B, C, D) and use only information in this newsletter (no outside)
@@ -48,14 +64,49 @@ def generate_quiz(content):
         }}
         NEWSLETTER
         {content}
-        """,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                thinking_config=types.ThinkingConfig(thinking_level="LOW"),
-            )
-    )
+        """
 
-    quiz=json.loads(response.text)
+
+def _completion_text(payload):
+    message = payload["choices"][0]["message"]
+    content = message.get("content") or ""
+    if isinstance(content, list):
+        content = "".join(
+            part.get("text", "") for part in content if isinstance(part, dict)
+        )
+    return content
+
+
+def _extract_json(text):
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+    start = text.find("{")
+    end = text.rfind("}")
+    if start == -1 or end == -1:
+        raise ValueError("model did not return JSON")
+    return text[start : end + 1]
+
+
+def _request_quiz(api_key, content, model):
+    body = {
+        "model": model,
+        "messages": [{"role": "user", "content": _quiz_prompt(content)}],
+        "temperature": 0.4,
+    }
+    response = requests.post(
+        HACKCLUB_URL,
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={**body, "response_format": {"type": "json_object"}},
+        timeout=90,
+    )
+    if response.status_code == 400:
+        response = requests.post(
+            HACKCLUB_URL,
+            headers={"Authorization": f"Bearer {api_key}"},
+            json=body,
+            timeout=90,
+        )
+    response.raise_for_status()
+    quiz = json.loads(_extract_json(_completion_text(response.json())))
     # make sure formatted right
     questions=quiz["questions"]
     if len(questions)!=10:

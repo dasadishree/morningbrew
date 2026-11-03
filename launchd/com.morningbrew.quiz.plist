@@ -22,13 +22,8 @@
         <key>PYTHONDONTWRITEBYTECODE</key>
         <string>1</string>
     </dict>
-    <key>StartCalendarInterval</key>
-    <dict>
-        <key>Hour</key>
-        <integer>7</integer>
-        <key>Minute</key>
-        <integer>0</integer>
-    </dict>
+    <key>StartInterval</key>
+    <integer>3600</integer>
     <key>RunAtLoad</key>
     <false/>
     <key>StandardOutPath</key>
