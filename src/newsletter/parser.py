@@ -1,6 +1,7 @@
 from bs4 import BeautifulSoup
 import re
 
+# rmeoves image studdf
 def is_image_artifact(line):
     lower = line.lower().strip()
     if lower in {
@@ -30,8 +31,8 @@ def is_image_artifact(line):
         return True
     return False
 
+# remove footers
 def remove_footer(text):
-    # remove footers
     footer_markers=[
         "brew's best",
         "share the brew",
@@ -72,6 +73,7 @@ def html_to_text(html):
     text = soup.get_text(separator="\n")
     return clean_text(text)
 
+# cleans plaintext
 def clean_plain_text(text):
     if not text:
         return ""
@@ -82,7 +84,6 @@ def clean_plain_text(text):
         return html_to_text(text)
 
     return clean_text(text)
-
 def clean_text(text):
     lines =[]
     for line in text.splitlines():
